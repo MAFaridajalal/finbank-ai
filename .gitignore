@@ -74,3 +74,11 @@ test_*.py
 *.tmp
 *.bak
 *.swp
+
+# Old session reports
+*FIXES*.md
+*COMPLETE*.md
+*STATUS*.md
+*IMPLEMENTATION*.md
+*RESOLUTION*.md
+test_delete.sh
