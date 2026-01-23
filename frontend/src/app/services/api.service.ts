@@ -87,6 +87,33 @@ export class ApiService {
     return this.http.post<any>(`${this.baseUrl}/api/customers`, customerData);
   }
 
+  updateCustomer(customerId: number, data: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    tier?: string;
+    branch?: string;
+  }): Observable<{
+    success: boolean;
+    customer_id?: number;
+    message: string;
+    errors?: { [key: string]: string };
+  }> {
+    return this.http.put<any>(`${this.baseUrl}/api/customers/${customerId}`, data);
+  }
+
+  deleteCustomer(customerId: number): Observable<{
+    success: boolean;
+    customer_id?: number;
+    message: string;
+    errors?: { [key: string]: string };
+  }> {
+    return this.http.delete<any>(`${this.baseUrl}/api/customers/${customerId}`);
+  }
+
   // Settings
   updateProvider(provider: string, model: string): Observable<{ success: boolean }> {
     return this.http.post<{ success: boolean }>(`${this.baseUrl}/api/settings/provider`, {
