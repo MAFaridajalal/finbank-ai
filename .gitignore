@@ -63,10 +63,6 @@ finbank.db
 logs/
 /tmp/
 
-# Test files
-test_*.py
-*_test.py
-
 # Claude
 .claude/
 
