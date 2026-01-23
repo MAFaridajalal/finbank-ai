@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Subject, Observable, BehaviorSubject } from 'rxjs';
 import { WsMessage, WsResponse } from '../models/types';
+import { AgentTrackerService } from './agent-tracker.service';
 
 @Injectable({
   providedIn: 'root'
@@ -16,6 +17,8 @@ export class WebSocketService {
 
   messages$: Observable<WsResponse> = this.messagesSubject.asObservable();
   connected$: Observable<boolean> = this.connectionStatus.asObservable();
+
+  constructor(private agentTracker: AgentTrackerService) {}
 
   connect(): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
@@ -34,6 +37,15 @@ export class WebSocketService {
       try {
         const data: WsResponse = JSON.parse(event.data);
         this.messagesSubject.next(data);
+
+        // Track agent activity
+        if (data.type === 'agent' && data.agent) {
+          this.agentTracker.updateAgentStatus(
+            data.agent,
+            data.status as 'running' | 'done' | 'error',
+            data.content
+          );
+        }
       } catch (e) {
         console.error('Failed to parse WebSocket message:', e);
       }

@@ -42,6 +42,10 @@ import { AgentStatusComponent } from './components/agent-status/agent-status.com
             <mat-icon matListItemIcon>table_chart</mat-icon>
             <span matListItemTitle>Data Browser</span>
           </a>
+          <a mat-list-item routerLink="/agents" routerLinkActive="active">
+            <mat-icon matListItemIcon>hub</mat-icon>
+            <span matListItemTitle>AI Agents</span>
+          </a>
           <a mat-list-item routerLink="/register" routerLinkActive="active">
             <mat-icon matListItemIcon>person_add</mat-icon>
             <span matListItemTitle>Register Customer</span>

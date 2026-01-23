@@ -22,4 +22,8 @@ export const routes: Routes = [
     path: 'settings',
     loadComponent: () => import('./components/settings/settings.component').then(m => m.SettingsComponent)
   },
+  {
+    path: 'agents',
+    loadComponent: () => import('./components/agent-panel/agent-panel.component').then(m => m.AgentPanelComponent)
+  },
 ];
