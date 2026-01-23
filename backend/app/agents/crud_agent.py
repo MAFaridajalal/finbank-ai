@@ -224,22 +224,26 @@ If any REQUIRED field (first_name, last_name, email) is missing, return:
         pattern_id = r"customer\s+(\d+)"
         match_id = re.search(pattern_id, task, re.IGNORECASE)
 
-        # Pattern 2: Look for names in different formats
-        # Format A: "Update FirstName LastName" or "of FirstName LastName"
-        # Format B: Find two consecutive capitalized words that aren't field names
+        # Pattern 2: Look for customer names - multiple strategies
+        # Strategy 1: "Update/Change [customer] FirstName LastName"
+        # Strategy 2: Named "named X Y" pattern
+        # Strategy 3: Generic two capitalized words (excluding field names)
         pattern_name_list = [
-            r"(?:of|update|change)\s+([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)",  # "of ChatTest User"
-            r"\b([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)\b(?!\s+(?:to|address))"  # "ChatTest User" but not before "to/address"
+            r"(?:update|change|modify)\s+(?:customer\s+)?([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)(?:,|\s|'s|$)",
+            r"named\s+([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)",
+            r"customer\s+([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)",
         ]
+
+        excluded_words = ['first', 'last', 'email', 'phone', 'update', 'change', 'modify', 'delete', 'remove']
+        excluded_second = ['name', 'address', 'email', 'phone', 'user']
 
         match_name = None
         for pattern in pattern_name_list:
-            match_name = re.search(pattern, task)
+            match_name = re.search(pattern, task, re.IGNORECASE)
             if match_name:
-                # Verify these aren't field names like "Last Name"
                 first_word = match_name.group(1).lower()
                 second_word = match_name.group(2).lower()
-                if first_word not in ['first', 'last', 'email', 'phone'] and second_word not in ['name', 'address']:
+                if first_word not in excluded_words and second_word not in excluded_second:
                     break
                 match_name = None
 
@@ -407,19 +411,23 @@ If any REQUIRED field (first_name, last_name, email) is missing, return:
         pattern_id = r"customer\s+(\d+)"
         match_id = re.search(pattern_id, task, re.IGNORECASE)
 
-        # Pattern 2: Look for names - find two consecutive capitalized words
-        # After "delete/remove" and optionally "customer"
+        # Pattern 2: Look for customer names - multiple strategies
         pattern_name_list = [
-            r"(?:delete|remove)\s+customer\s+([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)",  # "Delete customer FirstName LastName"
-            r"(?:delete|remove)\s+([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)",  # "Delete FirstName LastName"
-            r"customer\s+([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)"  # "customer FirstName LastName" (from orchestrator)
+            r"(?:delete|remove)\s+(?:customer\s+)?([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)",
+            r"named\s+([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)",
+            r"customer\s+([A-Z][a-zA-Z]+)\s+([A-Z][a-zA-Z]+)",
         ]
+
+        excluded_words = ['delete', 'remove', 'customer']
 
         match_name = None
         for pattern in pattern_name_list:
-            match_name = re.search(pattern, task)
+            match_name = re.search(pattern, task, re.IGNORECASE)
             if match_name:
-                break
+                first_word = match_name.group(1).lower()
+                if first_word not in excluded_words:
+                    break
+                match_name = None
 
         # Build data dictionary
         data = {}

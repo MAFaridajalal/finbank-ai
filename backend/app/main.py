@@ -271,6 +271,26 @@ class CustomerCreateResponse(BaseModel):
     errors: Optional[dict] = None
 
 
+class CustomerUpdateRequest(BaseModel):
+    """Customer update request model."""
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    tier: Optional[str] = None
+    branch: Optional[str] = None
+
+
+class CustomerResponse(BaseModel):
+    """Generic customer response model."""
+    success: bool
+    message: str
+    customer_id: Optional[int] = None
+    errors: Optional[dict] = None
+
+
 # Settings API Models
 class ProviderUpdateRequest(BaseModel):
     """Provider update request model."""
@@ -374,6 +394,152 @@ async def create_customer(request: CustomerCreateRequest, db: Session = Depends(
             success=False,
             message=f"Failed to create customer: {str(e)}"
         )
+
+
+@app.put("/api/customers/{customer_id}", response_model=CustomerResponse)
+async def update_customer(customer_id: int, request: CustomerUpdateRequest, db: Session = Depends(get_db)):
+    """
+    Update an existing customer.
+    Only updates fields that are provided (non-None).
+    """
+    try:
+        # Check if customer exists
+        existing = db.execute(text(
+            "SELECT id, first_name, last_name FROM customers WHERE id = :id"
+        ), {"id": customer_id}).first()
+
+        if not existing:
+            return CustomerResponse(
+                success=False,
+                message=f"Customer with ID {customer_id} not found"
+            )
+
+        errors = {}
+        updates = []
+        params = {"id": customer_id}
+
+        # Build dynamic update query
+        if request.first_name is not None:
+            updates.append("first_name = :first_name")
+            params["first_name"] = request.first_name
+
+        if request.last_name is not None:
+            updates.append("last_name = :last_name")
+            params["last_name"] = request.last_name
+
+        if request.email is not None:
+            # Check email uniqueness
+            dup = db.execute(text(
+                "SELECT id FROM customers WHERE LOWER(email) = LOWER(:email) AND id != :id"
+            ), {"email": request.email, "id": customer_id}).first()
+            if dup:
+                errors["email"] = "Email already exists"
+            else:
+                updates.append("email = :email")
+                params["email"] = request.email
+
+        if request.phone is not None:
+            # Check phone uniqueness
+            if request.phone.strip():
+                dup = db.execute(text(
+                    "SELECT id FROM customers WHERE phone = :phone AND id != :id"
+                ), {"phone": request.phone, "id": customer_id}).first()
+                if dup:
+                    errors["phone"] = "Phone already exists"
+                else:
+                    updates.append("phone = :phone")
+                    params["phone"] = request.phone
+            else:
+                updates.append("phone = :phone")
+                params["phone"] = request.phone
+
+        if request.address is not None:
+            updates.append("address = :address")
+            params["address"] = request.address
+
+        if request.city is not None:
+            updates.append("city = :city")
+            params["city"] = request.city
+
+        if request.tier is not None:
+            tier_map = {"basic": 1, "premium": 2, "vip": 3}
+            tier_id = tier_map.get(request.tier.lower())
+            if not tier_id:
+                errors["tier"] = "Invalid tier. Must be: Basic, Premium, VIP"
+            else:
+                updates.append("tier_id = :tier_id")
+                params["tier_id"] = tier_id
+
+        if request.branch is not None:
+            branch_map = {"downtown": 1, "westside": 2, "airport": 3, "bellevue": 4}
+            branch_id = branch_map.get(request.branch.lower())
+            if not branch_id:
+                errors["branch"] = "Invalid branch"
+            else:
+                updates.append("branch_id = :branch_id")
+                params["branch_id"] = branch_id
+
+        if errors:
+            return CustomerResponse(success=False, message="Validation failed", errors=errors)
+
+        if not updates:
+            return CustomerResponse(success=False, message="No fields to update")
+
+        # Execute update
+        db.execute(text(f"UPDATE customers SET {', '.join(updates)} WHERE id = :id"), params)
+        db.commit()
+
+        return CustomerResponse(
+            success=True,
+            customer_id=customer_id,
+            message=f"Updated customer {existing[1]} {existing[2]} (ID: {customer_id})"
+        )
+    except Exception as e:
+        db.rollback()
+        return CustomerResponse(success=False, message=f"Update failed: {str(e)}")
+
+
+@app.delete("/api/customers/{customer_id}", response_model=CustomerResponse)
+async def delete_customer(customer_id: int, db: Session = Depends(get_db)):
+    """
+    Delete a customer by ID.
+    Prevents deletion if customer has active accounts.
+    """
+    try:
+        # Check if customer exists
+        existing = db.execute(text(
+            "SELECT id, first_name, last_name FROM customers WHERE id = :id"
+        ), {"id": customer_id}).first()
+
+        if not existing:
+            return CustomerResponse(
+                success=False,
+                message=f"Customer with ID {customer_id} not found"
+            )
+
+        # Check for active accounts
+        active_accounts = db.execute(text(
+            "SELECT COUNT(*) FROM accounts WHERE customer_id = :id AND status = 'active'"
+        ), {"id": customer_id}).scalar()
+
+        if active_accounts > 0:
+            return CustomerResponse(
+                success=False,
+                message=f"Cannot delete customer {existing[1]} {existing[2]}: has {active_accounts} active account(s). Close accounts first."
+            )
+
+        # Delete customer
+        db.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+        db.commit()
+
+        return CustomerResponse(
+            success=True,
+            customer_id=customer_id,
+            message=f"Deleted customer {existing[1]} {existing[2]} (ID: {customer_id})"
+        )
+    except Exception as e:
+        db.rollback()
+        return CustomerResponse(success=False, message=f"Delete failed: {str(e)}")
 
 
 # Settings API

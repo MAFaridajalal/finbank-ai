@@ -53,6 +53,10 @@ class Orchestrator:
             agent_name = task.get("agent", "query")
             task_desc = task.get("task", user_message)
 
+            # For CRUD operations, pass original message to preserve exact names/values
+            if agent_name == "crud":
+                task_desc = user_message
+
             yield f"[AGENT:{agent_name}] {task_desc}"
 
             try:
