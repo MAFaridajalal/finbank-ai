@@ -1,0 +1,189 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: finbank
+---
+# ConfigMap for shared configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finbank-config
+  namespace: finbank
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  DEFAULT_LLM_PROVIDER: "openai"
+---
+# Secret for sensitive data (replace with actual values or use Azure Key Vault)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: finbank-secrets
+  namespace: finbank
+type: Opaque
+stringData:
+  DATABASE_URL: "mssql+pyodbc://user:pass@server:1433/db?driver=ODBC+Driver+18+for+SQL+Server"
+  OPENAI_API_KEY: "your-openai-api-key"
+  ANTHROPIC_API_KEY: "your-anthropic-api-key"
+---
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finbank-backend
+  namespace: finbank
+  labels:
+    app: finbank-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finbank-backend
+  template:
+    metadata:
+      labels:
+        app: finbank-backend
+    spec:
+      containers:
+        - name: backend
+          image: ${ACR_LOGIN_SERVER}/finbank-backend:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: finbank-config
+            - secretRef:
+                name: finbank-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: finbank-backend
+  namespace: finbank
+spec:
+  selector:
+    app: finbank-backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finbank-frontend
+  namespace: finbank
+  labels:
+    app: finbank-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finbank-frontend
+  template:
+    metadata:
+      labels:
+        app: finbank-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ${ACR_LOGIN_SERVER}/finbank-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+# Frontend Service (LoadBalancer for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: finbank-frontend
+  namespace: finbank
+spec:
+  selector:
+    app: finbank-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: LoadBalancer
+---
+# MCP Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finbank-mcp
+  namespace: finbank
+  labels:
+    app: finbank-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finbank-mcp
+  template:
+    metadata:
+      labels:
+        app: finbank-mcp
+    spec:
+      containers:
+        - name: mcp
+          image: ${ACR_LOGIN_SERVER}/finbank-mcp:latest
+          envFrom:
+            - configMapRef:
+                name: finbank-config
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+---
+# MCP Server Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: finbank-mcp
+  namespace: finbank
+spec:
+  selector:
+    app: finbank-mcp
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
